@@ -26,7 +26,8 @@ class BmpParser(
 
     override suspend fun getHeader(): String = withContext(Dispatchers.Default) {
         val sb = StringBuilder()
-        fullByteArray = inputStreamToByteArray(inputStream)
+        if (!::fullByteArray.isInitialized)
+            fullByteArray = inputStreamToByteArray(inputStream)
         Log.d("body", "body byte arr size1 : ${fullByteArray.size}")
 
         val bfHeaderBytes = fullByteArray.sliceArray(INDEX_RANGE_BITMAP_FILE_HEADER)
@@ -39,13 +40,12 @@ class BmpParser(
         sb.toString()
     }
 
-    override suspend fun getBody(): ByteArray {
-        return fullByteArray
+    override suspend fun getBody(): ByteArray = withContext(Dispatchers.Default){
+        if (!::fullByteArray.isInitialized) {
+            fullByteArray = inputStreamToByteArray(inputStream)
+        }
 
-//        val lastIndex = fullByteArray.size - 1
-//        Log.d("body", "body byte arr size2 : ${fullByteArray.size}")
-//
-//        return fullByteArray.sliceArray(54..lastIndex)//BitmapFactory.decodeByteArray(bitmapData, 0, bitmapData.size)
+        fullByteArray
     }
 
     private fun parseBitmapInfoHeader(headerBytes: ByteArray): String {

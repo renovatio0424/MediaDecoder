@@ -6,7 +6,6 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.reno.mediadecoder.ParserType.Companion.EXTRA_PARSER
 import kotlinx.android.synthetic.main.activity_main.*
-import java.io.InputStream
 
 class MainActivity: AppCompatActivity() {
 
@@ -41,7 +40,7 @@ enum class ParserType(val value:Int) {
         fun createParser(value: Int, context: Context): MediaFormatParser {
             return when(value) {
                 BMP.value -> BmpParser(context.resources.openRawResource(R.raw.sample_bmp))
-                JPG.value -> JpgParser(context.resources.openRawResource(R.raw.sample_jpg2))
+                JPG.value -> JpegParser(context.resources.openRawResource(R.raw.sample_jpg2))
                 else -> throw Exception("invalid parser value")
             }
         }

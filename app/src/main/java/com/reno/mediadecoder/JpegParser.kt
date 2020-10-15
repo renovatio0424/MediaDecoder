@@ -1,15 +1,20 @@
 package com.reno.mediadecoder
 
+import android.graphics.DiscretePathEffect
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.lang.StringBuilder
 
-class JpgParser(private val inputStream: InputStream) : MediaFormatParser {
+class JpegParser(private val inputStream: InputStream) : MediaFormatParser {
     private lateinit var byteArray: ByteArray
     private var headerLength: Int = 0
 
-    override suspend fun getHeader(): String {
+    override suspend fun getHeader(): String = withContext(Dispatchers.Default) {
         val sb = StringBuilder()
-        byteArray = inputStreamToByteArray(inputStream)
+        if (!::byteArray.isInitialized)
+            byteArray = inputStreamToByteArray(inputStream)
+
         val lastIndex = byteArray.lastIndex
 
         sb.append("JPG Information\n\n")
@@ -21,7 +26,7 @@ class JpgParser(private val inputStream: InputStream) : MediaFormatParser {
         sb.append(parserMarker(byteArray.sliceArray(20..(headerLength - 2))))
         sb.append(parseEOI(byteArray.sliceArray((byteArray.lastIndex - 1)..byteArray.lastIndex)))
 
-        return sb.toString()
+        sb.toString()
     }
 
     private fun parseEOI(byteArray: ByteArray): String {
@@ -59,7 +64,7 @@ class JpgParser(private val inputStream: InputStream) : MediaFormatParser {
                 }
                 sb.append(markerName)
                 sb.append("/ marker index : $index\n")
-                markCount ++
+                markCount++
             }
 
         }
@@ -102,8 +107,10 @@ class JpgParser(private val inputStream: InputStream) : MediaFormatParser {
         return sb.toString()
     }
 
-    override suspend fun getBody(): ByteArray {
-        return byteArray
+    override suspend fun getBody(): ByteArray = withContext(Dispatchers.Default) {
+        if (!::byteArray.isInitialized)
+            byteArray = inputStreamToByteArray(inputStream)
+        byteArray
     }
 
 }
