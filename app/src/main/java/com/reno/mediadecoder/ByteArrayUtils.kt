@@ -18,6 +18,8 @@ fun ByteArray.toInt(): Int {
     return result
 }
 
+fun Byte.toPositiveInt() = toInt() and 0xFF
+
 fun ByteArray.convertInteger(): Int = ByteBuffer.wrap(this).order(ByteOrder.LITTLE_ENDIAN).int
 
 fun ByteArray.toHex(): String {

@@ -29,17 +29,55 @@ class BmpParser(
             fullByteArray = inputStreamToByteArray(inputStream)
         Log.d("body", "body byte arr size1 : ${fullByteArray.size}")
 
-        val bfHeaderBytes = fullByteArray.sliceArray(INDEX_RANGE_BITMAP_FILE_HEADER)
-        val bfh = parseBitmapFileHeader(bfHeaderBytes)
-        val bih = fullByteArray.sliceArray(14..53)
-        val dib = parseBitmapInfoHeader(bih)
+        val bfh = parseBitmapFileHeader(fullByteArray.sliceArray(INDEX_RANGE_BITMAP_FILE_HEADER))
+        val dib = parseBitmapInfoHeader(fullByteArray.sliceArray(14..53))
+        val pixelStartIdx = getPixelStartIdx(fullByteArray, bfh.offset) //todo offset index 임 찾는게 아니구
+        val pixelColor = parseToAscii(fullByteArray.sliceArray(pixelStartIdx..fullByteArray.lastIndex), dib.width)
 
         sb.append(bfh)
         sb.append(dib)
+        sb.append(pixelColor)
+
         sb.toString()
     }
 
-    override suspend fun getBody(): ByteArray = withContext(Dispatchers.Default){
+    private fun getPixelStartIdx(fullByteArray: ByteArray, offset: String): Int {
+        return fullByteArray.toHex().indexOf(offset)
+    }
+
+    private fun parsePixelColor(pixelByteArray: ByteArray): String {
+        val sb = StringBuilder()
+        for (idx in pixelByteArray.indices step 3) {
+            sb.append("R[${pixelByteArray[idx].toHex()}] ")
+            sb.append("G[${pixelByteArray[idx + 1].toHex()}] ")
+            sb.append("B[${pixelByteArray[idx + 2].toHex()}] |")
+        }
+        return sb.toString()
+    }
+
+    private fun parseToAscii(pixelByteArray: ByteArray, width: Int): String {
+        val sb = StringBuilder()
+        val asciis = charArrayOf('#', '#', '@', '%', '=', '*', '+', ':', '-', '.', '.')
+        for (idx in pixelByteArray.indices step width * 3) {
+            for (colorByteIdx in idx until (idx + width) step 3) {
+                try {
+                    val colorR = pixelByteArray[colorByteIdx].toPositiveInt()
+                    val colorG = pixelByteArray[colorByteIdx + 1].toPositiveInt()
+                    val colorB = pixelByteArray[colorByteIdx + 2].toPositiveInt()
+                    val grey = (colorR + colorG + colorB) / 3
+
+                    val ascii = asciis[grey * asciis.size / 256]
+                    sb.append(ascii)
+                } finally {
+                    continue
+                }
+            }
+            sb.append("\n")
+        }
+        return sb.toString()
+    }
+
+    override suspend fun getBody(): ByteArray = withContext(Dispatchers.Default) {
         if (!::fullByteArray.isInitialized) {
             fullByteArray = inputStreamToByteArray(inputStream)
         }
@@ -47,20 +85,60 @@ class BmpParser(
         fullByteArray
     }
 
-    private fun parseBitmapInfoHeader(headerBytes: ByteArray): String {
+    private fun parseBitmapInfoHeader(headerBytes: ByteArray): BitmapInfoHeader {
         val headerSize = headerBytes.sliceArray(0..3).convertInteger()
         val width = headerBytes.sliceArray(4..7).convertInteger()
         val height = headerBytes.sliceArray(8..11).convertInteger()
         val colorPlane = headerBytes.sliceArray(12..13).toInt()
         val bitPerPixel = headerBytes.sliceArray(14..15).toInt()
         val compressionMethod =
-            BitmapCompressionMethod.fromValue(headerBytes.sliceArray(16..19).convertInteger())?.toString()
+            BitmapCompressionMethod.fromValue(headerBytes.sliceArray(16..19).convertInteger())
         val imageSize = headerBytes.sliceArray(20..23).convertInteger()
         val horizontalResolution = headerBytes.sliceArray(24..27).convertInteger()
         val verticalResolution = headerBytes.sliceArray(28..31).convertInteger()
         val numberOfColor = headerBytes.sliceArray(32..35).convertInteger()
         val numberOfImportantColor = headerBytes.sliceArray(36..39).convertInteger()
 
+        return BitmapInfoHeader(
+            headerSize,
+            width,
+            height,
+            colorPlane,
+            bitPerPixel,
+            compressionMethod,
+            imageSize,
+            horizontalResolution,
+            verticalResolution,
+            numberOfColor,
+            numberOfImportantColor
+        )
+    }
+
+    private fun parseBitmapFileHeader(headerBytes: ByteArray): BitmapFileHeader {
+        val identify = headerBytes.sliceArray(INDEX_RANGE_IDENTIFY).toString(Charsets.UTF_8)
+        val fileSize = headerBytes.sliceArray(INDEX_RANGE_FILE_SIZE).convertInteger()
+        val reserved1 = headerBytes.sliceArray(INDEX_RANGE_RESERVED1).toInt()
+        val reserved2 = headerBytes.sliceArray(INDEX_RANGE_RESERVED2).toInt()
+        val offset = headerBytes.sliceArray(INDEX_RANGE_OFFSET).toHex()
+
+        return BitmapFileHeader(identify, fileSize, reserved1, reserved2, offset)
+    }
+}
+
+data class BitmapInfoHeader(
+    private val headerSize: Int,
+    val width: Int,
+    private val height: Int,
+    private val colorPlane: Int,
+    private val bitPerPixel: Int,
+    private val compressionMethod: BitmapCompressionMethod,
+    private val imageSize: Int,
+    private val horizontalResolution: Int,
+    private val verticalResolution: Int,
+    private val numberOfColor: Int,
+    private val numberOfImportantColor: Int
+) {
+    override fun toString(): String {
         val sb = StringBuilder()
         sb.append("Bitmap Info Header\n\n")
         sb.append("header size: $headerSize\n")
@@ -77,14 +155,16 @@ class BmpParser(
 
         return sb.toString()
     }
+}
 
-    private fun parseBitmapFileHeader(headerBytes: ByteArray): String {
-        val identify = headerBytes.sliceArray(INDEX_RANGE_IDENTIFY).toString(Charsets.UTF_8)
-        val fileSize = headerBytes.sliceArray(INDEX_RANGE_FILE_SIZE).convertInteger()
-        val reserved1 = headerBytes.sliceArray(INDEX_RANGE_RESERVED1).toInt()
-        val reserved2 = headerBytes.sliceArray(INDEX_RANGE_RESERVED2).toInt()
-        val offset = headerBytes.sliceArray(INDEX_RANGE_OFFSET).toHex()
-
+data class BitmapFileHeader(
+    private val identify: String,
+    private val fileSize: Int,
+    private val reserved1: Int,
+    private val reserved2: Int,
+    val offset: String
+) {
+    override fun toString(): String {
         val sb = StringBuilder()
         sb.append("BitmapFileHeader\n\n")
         sb.append("identify: $identify\n")
@@ -117,7 +197,7 @@ enum class BitmapCompressionMethod(
     }
 
     companion object {
-        fun fromValue(value: Int): BitmapCompressionMethod? {
+        fun fromValue(value: Int): BitmapCompressionMethod {
             return when (value) {
                 0 -> BI_RGB
                 1 -> BI_RLE8
@@ -129,7 +209,7 @@ enum class BitmapCompressionMethod(
                 11 -> BI_CMYK
                 12 -> BI_CMYKRLE8
                 13 -> BI_CMYKRLE4
-                else -> null
+                else -> throw Exception("Invalid Bitmap Compression Method")
             }
         }
     }
