@@ -3,7 +3,6 @@ package com.reno.mediadecoder
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
 val INDEX_RANGE_BITMAP_FILE_HEADER = 0..13
@@ -63,8 +62,7 @@ class BmpParser(
         val numberOfImportantColor = headerBytes.sliceArray(36..39).convertInteger()
 
         val sb = StringBuilder()
-        sb.append("\nBitmap Info Header\n\n")
-        sb.append("total hex : ${headerBytes.toHex()}\n")
+        sb.append("Bitmap Info Header\n\n")
         sb.append("header size: $headerSize\n")
         sb.append("width: $width\n")
         sb.append("height: $height\n")
@@ -89,7 +87,6 @@ class BmpParser(
 
         val sb = StringBuilder()
         sb.append("BitmapFileHeader\n\n")
-        sb.append("total hex : ${headerBytes.toHex()}\n")
         sb.append("identify: $identify\n")
         sb.append("fileSize: $fileSize\n")
         sb.append("reserved1: $reserved1\n")
@@ -98,7 +95,6 @@ class BmpParser(
 
         return sb.toString()
     }
-
 }
 
 enum class BitmapCompressionMethod(

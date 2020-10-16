@@ -23,7 +23,7 @@ fun ByteArray.convertInteger(): Int = ByteBuffer.wrap(this).order(ByteOrder.LITT
 fun ByteArray.toHex(): String {
     val sb = StringBuilder()
     for (byte in this) {
-        sb.append(String.format("%02X ", byte))
+        sb.append(byte.toHex())
     }
     return sb.toString()
 }

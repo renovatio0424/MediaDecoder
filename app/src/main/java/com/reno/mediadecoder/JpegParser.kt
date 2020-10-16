@@ -1,10 +1,8 @@
 package com.reno.mediadecoder
 
-import android.graphics.DiscretePathEffect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStream
-import java.lang.StringBuilder
 
 class JpegParser(private val inputStream: InputStream) : MediaFormatParser {
     private lateinit var byteArray: ByteArray
@@ -18,13 +16,7 @@ class JpegParser(private val inputStream: InputStream) : MediaFormatParser {
         val lastIndex = byteArray.lastIndex
 
         sb.append("JPG Information\n\n")
-
-        sb.append("size : ${byteArray.size}")
-        sb.append("40 : ${byteArray.sliceArray(0..39).toHex()}\n")
-        sb.append(parseSOI(byteArray.sliceArray(0..1)))
-        sb.append(parseJFIF_APPO(byteArray.sliceArray(2..19)))
-        sb.append(parserMarker(byteArray.sliceArray(20..(headerLength - 2))))
-        sb.append(parseEOI(byteArray.sliceArray((byteArray.lastIndex - 1)..byteArray.lastIndex)))
+        sb.append(parserMarker(byteArray))
 
         sb.toString()
     }
@@ -35,38 +27,49 @@ class JpegParser(private val inputStream: InputStream) : MediaFormatParser {
 
     private fun parserMarker(byteArray: ByteArray): String {
         val sb = StringBuilder()
-        var markCount = 1
+        val markerList = arrayListOf<Triple<String, Int, Int>>()
+        var prevMarkerName: String? = null
+        var prevStartIdx = -1
 
-        for ((index, byte) in byteArray.withIndex()) {
-            if (byte.toHex().contains("FF")) {
-                sb.append("marker $markCount: ")
-                val marker = "${byte.toHex()}${byteArray[index + 1].toHex()}".replace(" ", "")
-                val markerName = when {
-                    marker.contains("FFD8") -> "SOI (Start Of Image)"
-                    marker.contains("FFC0") -> "SOFO (Start Of Frame)"
-                    marker.contains("FFC2") -> "SOF2 (Start Of Frame)"
-                    marker.contains("FFC4") -> "DHT (Define Huffman Tables)"
-                    marker.contains("FFDB") -> "DQT (Define Quantization Tables)"
-                    marker.contains("FFDD") -> "DRI (Define Restart Interval)"
-                    marker.contains("FFDA") -> "SOS (Start of Scan)"
-                    marker.contains("FFD0") ||
-                            marker.contains("FFD1") ||
-                            marker.contains("FFD2") ||
-                            marker.contains("FFD3") ||
-                            marker.contains("FFD4") ||
-                            marker.contains("FFD5") ||
-                            marker.contains("FFD6") ||
-                            marker.contains("FFD7") -> "Restart"
-                    marker.contains("FFE0") -> "Application-specific"
-                    marker.contains("FFFE") -> "Comment"
-                    marker.contains("FFD9") -> "End Of Image"
-                    else -> "Unknown: $marker"
+        for (index in 0 until byteArray.lastIndex step 2) {
+            val marker = byteArray[index + 1].toHex().replace(" ", "")
+            if (byteArray[index].toHex().replace(" ", "") == "FF") {
+                val markerName = when (marker) {
+                    "D8" -> "SOI (Start Of Image)"
+                    "C0" -> "SOFO (Start Of Frame)"
+                    "C2" -> "SOF2 (Start Of Frame)"
+                    "C4" -> "DHT (Define Huffman Tables)"
+                    "DB" -> "DQT (Define Quantization Tables)"
+                    "DD" -> "DRI (Define Restart Interval)"
+                    "DA" -> "SOS (Start of Scan)"
+                    "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7" -> "RSTn (Restart)"
+                    "E0", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9" -> "APPn (Application-specific)"
+                    "FE" -> "COM (Comment)"
+                    "D9" -> "EOI (End Of Image)"
+                    else -> continue
                 }
-                sb.append(markerName)
-                sb.append("/ marker index : $index\n")
-                markCount++
-            }
 
+                if (prevMarkerName == null || prevStartIdx == -1) {
+                    prevMarkerName = markerName
+                    prevStartIdx = index
+                    continue
+                }
+
+                markerList.add(Triple(prevMarkerName, prevStartIdx, index - 1))
+                prevMarkerName = markerName
+                prevStartIdx = index
+            }
+        }
+
+        for ((idx, marker) in markerList.withIndex()) {
+            sb.append("marker$idx : ${marker.first}\n")
+            val parseString = when {
+                marker.first.contains("SOI") -> parseSOI(byteArray.sliceArray(marker.second..marker.third))
+                marker.first.contains("APPn") -> parseJFIF_APPO(byteArray.sliceArray(marker.second..marker.third))
+                marker.first.contains("EOI") -> parseEOI(byteArray.sliceArray(marker.second..marker.third))
+                else -> ""
+            }
+            sb.append(parseString)
         }
 
         return sb.toString()
@@ -85,8 +88,6 @@ class JpegParser(private val inputStream: InputStream) : MediaFormatParser {
         val yThumbnail = byteArray[17].toInt()
 
         val sb = StringBuilder()
-        sb.append("JFIF APPO\n")
-        sb.append("Hex : ${byteArray.toHex()}\n")
         sb.append("appoMarker : $appoMarker\n")
         sb.append("length : $headerLength\n")
         sb.append("identifier : $identifier\n")
@@ -102,8 +103,7 @@ class JpegParser(private val inputStream: InputStream) : MediaFormatParser {
 
     private fun parseSOI(byteArray: ByteArray): String {
         val sb = StringBuilder()
-        sb.append("JPG SOI\n")
-        sb.append("SOI : ${byteArray.toHex()}\n\n")
+        sb.append("SOI : ${byteArray.toHex()}\n")
         return sb.toString()
     }
 
