@@ -45,6 +45,14 @@ enum class ParserType(val value:Int) {
             }
         }
 
+        fun getOriginImage(value: Int):Int {
+            return when(value) {
+                BMP.value -> R.raw.sample_bmp
+                JPG.value -> R.raw.sample_jpg2
+                else -> throw Exception("invalid parser value")
+            }
+        }
+
         const val EXTRA_PARSER = "PARSER_TYPE"
     }
 }

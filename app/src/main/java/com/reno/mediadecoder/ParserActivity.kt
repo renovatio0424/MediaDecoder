@@ -23,16 +23,16 @@ class ParserActivity : AppCompatActivity(), CoroutineScope {
         intent.extras
 
         val parser: MediaFormatParser = ParserType.createParser(intent.getIntExtra(EXTRA_PARSER, -1), baseContext)
-
+        val originImageId = ParserType.getOriginImage(intent.getIntExtra(EXTRA_PARSER, -1))
         pbLoading.visibility = View.VISIBLE
 
         launch {
             val result = parser.getHeader()
             pbLoading.visibility = View.INVISIBLE
             tvParser.text = result
+            ivOrigin.setImageResource(originImageId)
             val bmByte = parser.getBody()
             Log.d("bm", "bm: ${bmByte.size}")
-//            val bm = Bitmap.createBitmap(bmByte, 300, 300, Bitmap.Config.ARGB_8888);
             val bm = BitmapFactory.decodeByteArray(bmByte, 0, bmByte.size)
             Log.d("bm", "bm: $bm")
             ivResult.setImageBitmap(bm)

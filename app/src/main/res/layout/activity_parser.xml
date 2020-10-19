@@ -35,11 +35,28 @@
                 android:layout_height="wrap_content"
                 android:text="wait ..."
                 android:padding="8dp"
-                android:textSize="4sp"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Origin"/>
+
+            <ImageView
+                android:id="@+id/ivOrigin"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minHeight="100dp"
+                android:minWidth="100dp"
+                android:background="@android:color/darker_gray"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MonoChrome"/>
 
             <ImageView
                 android:id="@+id/ivResult"

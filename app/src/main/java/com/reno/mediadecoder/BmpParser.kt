@@ -22,6 +22,8 @@ class BmpParser(
     private val inputStream: InputStream
 ) : MediaFormatParser {
     private lateinit var fullByteArray: ByteArray
+    private lateinit var bfh: BitmapFileHeader
+    private lateinit var bih: BitmapInfoHeader
 
     override suspend fun getHeader(): String = withContext(Dispatchers.Default) {
         val sb = StringBuilder()
@@ -29,52 +31,27 @@ class BmpParser(
             fullByteArray = inputStreamToByteArray(inputStream)
         Log.d("body", "body byte arr size1 : ${fullByteArray.size}")
 
-        val bfh = parseBitmapFileHeader(fullByteArray.sliceArray(INDEX_RANGE_BITMAP_FILE_HEADER))
-        val dib = parseBitmapInfoHeader(fullByteArray.sliceArray(14..53))
-        val pixelStartIdx = getPixelStartIdx(fullByteArray, bfh.offset) //todo offset index 임 찾는게 아니구
-        val pixelColor = parseToAscii(fullByteArray.sliceArray(pixelStartIdx..fullByteArray.lastIndex), dib.width)
+        bfh = parseBitmapFileHeader(fullByteArray.sliceArray(INDEX_RANGE_BITMAP_FILE_HEADER))
+        bih = parseBitmapInfoHeader(fullByteArray.sliceArray(14..53))
 
         sb.append(bfh)
-        sb.append(dib)
-        sb.append(pixelColor)
+        sb.append(bih)
 
         sb.toString()
     }
 
-    private fun getPixelStartIdx(fullByteArray: ByteArray, offset: String): Int {
-        return fullByteArray.toHex().indexOf(offset)
-    }
-
-    private fun parsePixelColor(pixelByteArray: ByteArray): String {
-        val sb = StringBuilder()
+    private fun changeColorToMono(pixelByteArray: ByteArray): ByteArray {
         for (idx in pixelByteArray.indices step 3) {
-            sb.append("R[${pixelByteArray[idx].toHex()}] ")
-            sb.append("G[${pixelByteArray[idx + 1].toHex()}] ")
-            sb.append("B[${pixelByteArray[idx + 2].toHex()}] |")
-        }
-        return sb.toString()
-    }
+            val colorR = pixelByteArray[idx].toPositiveInt()
+            val colorG = pixelByteArray[idx + 1].toPositiveInt()
+            val colorB = pixelByteArray[idx + 2].toPositiveInt()
+            val grey = (colorR + colorG + colorB) / 3
 
-    private fun parseToAscii(pixelByteArray: ByteArray, width: Int): String {
-        val sb = StringBuilder()
-        val asciis = charArrayOf('#', '#', '@', '%', '=', '*', '+', ':', '-', '.', '.')
-        for (idx in pixelByteArray.indices step width * 3) {
-            for (colorByteIdx in idx until (idx + width) step 3) {
-                try {
-                    val colorR = pixelByteArray[colorByteIdx].toPositiveInt()
-                    val colorG = pixelByteArray[colorByteIdx + 1].toPositiveInt()
-                    val colorB = pixelByteArray[colorByteIdx + 2].toPositiveInt()
-                    val grey = (colorR + colorG + colorB) / 3
-
-                    val ascii = asciis[grey * asciis.size / 256]
-                    sb.append(ascii)
-                } finally {
-                    continue
-                }
-            }
-            sb.append("\n")
+            pixelByteArray[idx] = grey.toByte()
+            pixelByteArray[idx + 1] = grey.toByte()
+            pixelByteArray[idx + 2] = grey.toByte()
         }
-        return sb.toString()
+        return pixelByteArray
     }
 
     override suspend fun getBody(): ByteArray = withContext(Dispatchers.Default) {
@@ -82,6 +59,11 @@ class BmpParser(
             fullByteArray = inputStreamToByteArray(inputStream)
         }
 
+        val pixelColor = changeColorToMono(fullByteArray.sliceArray(bfh.offset..fullByteArray.lastIndex))
+
+        for (idx in bfh.offset..fullByteArray.lastIndex) {
+            fullByteArray[idx] = pixelColor[idx - bfh.offset]
+        }
         fullByteArray
     }
 
@@ -119,7 +101,7 @@ class BmpParser(
         val fileSize = headerBytes.sliceArray(INDEX_RANGE_FILE_SIZE).convertInteger()
         val reserved1 = headerBytes.sliceArray(INDEX_RANGE_RESERVED1).toInt()
         val reserved2 = headerBytes.sliceArray(INDEX_RANGE_RESERVED2).toInt()
-        val offset = headerBytes.sliceArray(INDEX_RANGE_OFFSET).toHex()
+        val offset = headerBytes.sliceArray(INDEX_RANGE_OFFSET).convertInteger()
 
         return BitmapFileHeader(identify, fileSize, reserved1, reserved2, offset)
     }
@@ -162,7 +144,7 @@ data class BitmapFileHeader(
     private val fileSize: Int,
     private val reserved1: Int,
     private val reserved2: Int,
-    val offset: String
+    val offset: Int
 ) {
     override fun toString(): String {
         val sb = StringBuilder()
